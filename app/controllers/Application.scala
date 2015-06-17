@@ -22,9 +22,9 @@ object Application extends Controller {
     val (resultFuture, id) = maybeId.fold {
       // no id so create a job
       val id = UUID.randomUUID().toString
-      (Akka.system.actorOf(Props(classOf[LicenseDetector], request.body), id).ask(GetResult)(Timeout(25.seconds)), id)
+      (Akka.system.actorOf(Props(classOf[LicenseDetector], request.body), id).ask(GetResult)(Timeout(20.seconds)), id)
     } { id =>
-      (Akka.system.actorSelection(s"user/$id").ask(GetResult)(Timeout(25.seconds)), id)
+      (Akka.system.actorSelection(s"user/$id").ask(GetResult)(Timeout(20.seconds)), id)
     }
 
     resultFuture.mapTo[Option[String]].map { result =>
