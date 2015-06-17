@@ -40,7 +40,7 @@ class ApplicationSpec extends PlaySpec with OneAppPerSuite {
           |// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.""".stripMargin
 
 
-      val result = controllers.Application.license()(FakeRequest("POST", "/", FakeHeaders(), license))
+      val result = controllers.Application.license(None)(FakeRequest("POST", "/", FakeHeaders(), license))
 
       status(result) must be (Status.OK)
       contentAsString(result) must equal ("BSD 3-Clause")
