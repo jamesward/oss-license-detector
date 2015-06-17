@@ -3,3 +3,4 @@
 # ~~~~
 
 POST         /                         controllers.Application.license(id: Option[String])
+GET          /                         controllers.Application.licenseCheck(id: String)
