@@ -1,9 +1,12 @@
 package utils
 
+import java.util.Locale
+
 import org.apache.commons.lang3.StringUtils
 import play.api.{Play, Application}
 
 import scala.io.{Codec, Source}
+import scala.language.implicitConversions
 import scala.util.Try
 
 class LicenseUtil(implicit app: Application) {
@@ -13,24 +16,26 @@ class LicenseUtil(implicit app: Application) {
     // only pick licenses that are around the same length as the input
     val possibleLicensesBasedOnLength = licenses.filter {
       case (name, licenseText) =>
-        val high = Math.max(licenseText.length, contents.length)
-        val low = Math.min(licenseText.length, contents.length)
+        val high = Math.max(licenseText.length, contents.length).toDouble
+        val low = Math.min(licenseText.length, contents.length).toDouble
         val distance = (high - low) / low
-        distance < 2
+        distance < 0.5
     }
 
-    // get the Levenshtein Distance for each license
-    val licensesWithScores = possibleLicensesBasedOnLength.mapValues { licenseTemplate =>
-      (licenseTemplate, StringUtils.getLevenshteinDistance(licenseTemplate, contents))
-    }
+    val licensesWithScores = scores(contents, possibleLicensesBasedOnLength)
 
-    // pick the lowest scoring license if there are any
     Try {
       val (lowestScoringLicense, _) = licensesWithScores.minBy {
         case (name, (licenseTemplate, score)) => score
       }
       lowestScoringLicense
     }.toOption
+  }
+
+  def scores(licenseContents: String, licenses: Map[String, String]): Map[String, (String, Int)] = {
+    licenses.mapValues { licenseTemplate =>
+      (licenseTemplate, StringUtils.getLevenshteinDistance(licenseTemplate, licenseContents))
+    }
   }
 
   type MaybeLicense = Option[String]

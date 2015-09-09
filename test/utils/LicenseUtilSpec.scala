@@ -1,8 +1,10 @@
 package utils
 
+import java.util.concurrent.TimeUnit
+
+import com.ning.http.client.AsyncHttpClient
 import org.scalatestplus.play.{OneAppPerSuite, PlaySpec}
-import play.api.libs.json.{JsArray, JsString, Json}
-import play.api.libs.ws.{WS, WSAuthScheme}
+import play.api.libs.ws.WS
 import play.api.test.Helpers._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -55,7 +57,8 @@ class LicenseUtilSpec extends PlaySpec with OneAppPerSuite {
           |LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
           |OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
           |THE SOFTWARE.""".stripMargin
-      licenseUtil.detect(twitterLicense) must be (Some("MIT"))
+
+      licenseUtil.detect(twitterLicense) must be(Some("MIT"))
     }
     "detect the MIT license from a jQuery license" in {
       val jqueryLicense =
@@ -95,10 +98,21 @@ class LicenseUtilSpec extends PlaySpec with OneAppPerSuite {
           |externally maintained libraries used by this software which have their
           |own licenses; we recommend you read them, as their terms may differ from
           |the terms above.""".stripMargin
-      licenseUtil.detect(jqueryLicense) must be (Some("MIT"))
+      licenseUtil.detect(jqueryLicense) must be(Some("MIT"))
     }
     "not detect a license from a non-license" in {
-      licenseUtil.detect("asdf") must be (None)
+      licenseUtil.detect("asdf") must be(None)
+    }
+  }
+
+  "http://www.tinymce.com/license license" should {
+    "detect a LGPL-2.1 license" in {
+      val ws = WS.client
+      val future = ws.url("http://www.tinymce.com/license").get().map { response =>
+        licenseUtil.detect(response.body)
+      }
+      future.foreach(_ => ws.underlying[AsyncHttpClient].close())
+      await(future, 60, TimeUnit.SECONDS) must be (Some("LGPL-2.1"))
     }
   }
 

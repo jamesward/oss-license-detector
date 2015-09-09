@@ -8,6 +8,6 @@ scalaVersion := "2.11.5"
 
 libraryDependencies ++= Seq(
   ws,
-  "org.apache.commons" % "commons-lang3" % "3.3.2",
+  "org.apache.commons" % "commons-lang3" % "3.4",
   "org.scalatestplus" %% "play" % "1.2.0" % "test"
 )
