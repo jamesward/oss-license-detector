@@ -1,11 +1,11 @@
 package controllers
 
-import java.util.UUID
-
 import actors.{GetResult, LicenseDetector}
 import akka.actor.Props
 import akka.util.Timeout
 import akka.pattern.ask
+import play.api.cache.Cache
+import play.api.libs.Codecs
 import play.api.libs.concurrent.Akka
 import play.api.mvc._
 import play.api.Play.current
@@ -14,32 +14,48 @@ import scala.concurrent.{Promise, Future, TimeoutException}
 import scala.concurrent.duration._
 import play.api.libs.concurrent.Execution.Implicits.defaultContext
 
-import scala.util.Random
+import scala.util.{Try, Random}
 
 
 object Application extends Controller {
 
   def license(maybeId: Option[String]) = Action.async(parse.text) { request =>
-    maybeId.fold {
-      val id = UUID.randomUUID().toString
-      val actorSystem = Akka.system
-      val actor = actorSystem.actorOf(Props(classOf[LicenseDetector], request.body), id)
-      val resultFuture = actor.ask(GetResult)(Timeout(5.minutes))
+    val id = maybeId.getOrElse(Codecs.sha1(request.body))
 
-      // shut down the actor 5 seconds after it is finished processing
-      resultFuture.foreach { _ =>
-        actorSystem.scheduler.scheduleOnce(5.seconds) {
+    Cache.getAs[String](id).fold {
+      // cache miss
+      val actorSystem = Akka.system
+
+      // we need to see if a job already exists but we can't use actorSystem.actorSelection(s"user/$id").resolveOne
+      // because it sends a message to the actor and in our case the actor is likely blocked
+      // so instead lets just try to create the actor and if it fails due to InvalidActorNameException
+      // then we know there is already one
+      val maybeActor = Try {
+        actorSystem.actorOf(Props(classOf[LicenseDetector], request.body), id)
+      }.toOption
+
+      // check for an existing job
+      maybeActor.fold(existingJob(id)) { actor =>
+        // create a new job
+        val resultFuture = actor.ask(GetResult)(Timeout(5.minutes))
+
+        // shut down the actor 5 seconds after it is finished processing
+        resultFuture.foreach { result =>
+          Cache.set(id, result)
           actorSystem.stop(actor)
         }
-      }
 
-      TimeoutFuture(20.seconds)(resultFuture).flatMap { result =>
-        tryToGetResult(resultFuture, id)
-      } recover {
-        case e: TimeoutException =>
-          Found(routes.Application.licenseCheck(id).url)
+        TimeoutFuture(20.seconds)(resultFuture).flatMap { result =>
+          tryToGetResult(resultFuture, id)
+        } recover {
+          case e: TimeoutException =>
+            Found(routes.Application.licenseCheck(id).url)
+        }
       }
-    } (existingJob)
+    } { license =>
+      // cache hit
+      Future.successful(Ok(license))
+    }
   }
 
   def licenseCheck(id: String) = Action.async {
