@@ -1,80 +1,58 @@
 package controllers
 
-import actors.{GetResult, LicenseDetector}
-import akka.actor.Props
-import akka.util.Timeout
-import akka.pattern.ask
+import play.api.Play
 import play.api.cache.Cache
 import play.api.libs.Codecs
 import play.api.libs.concurrent.Akka
 import play.api.mvc._
 import play.api.Play.current
+import play.api.libs.concurrent.Execution.Implicits.defaultContext
+import utils.LicenseUtil
 
 import scala.concurrent.{Promise, Future, TimeoutException}
 import scala.concurrent.duration._
-import play.api.libs.concurrent.Execution.Implicits.defaultContext
 
-import scala.util.{Try, Random}
+import scala.util.Random
 
 
 object Application extends Controller {
 
-  def license(maybeId: Option[String]) = Action.async(parse.text) { request =>
-    val id = maybeId.getOrElse(Codecs.sha1(request.body))
+  def license = Action.async(parse.text) { request =>
+    val id = Codecs.sha1(request.body)
 
-    Cache.getAs[String](id).fold {
+    val maybeResultFuture = Cache.getAs[Option[String]](id).fold {
       // cache miss
-      val actorSystem = Akka.system
 
-      // we need to see if a job already exists but we can't use actorSystem.actorSelection(s"user/$id").resolveOne
-      // because it sends a message to the actor and in our case the actor is likely blocked
-      // so instead lets just try to create the actor and if it fails due to InvalidActorNameException
-      // then we know there is already one
-      val maybeActor = Try {
-        actorSystem.actorOf(Props(classOf[LicenseDetector], request.body), id)
-      }.toOption
-
-      // check for an existing job
-      maybeActor.fold(existingJob(id)) { actor =>
-        // create a new job
-        val resultFuture = actor.ask(GetResult)(Timeout(5.minutes))
-
-        // shut down the actor 5 seconds after it is finished processing
-        resultFuture.foreach { result =>
-          Cache.set(id, result)
-          actorSystem.stop(actor)
-        }
-
-        TimeoutFuture(20.seconds)(resultFuture).flatMap { result =>
-          tryToGetResult(resultFuture, id)
-        } recover {
-          case e: TimeoutException =>
-            Found(routes.Application.licenseCheck(id).url)
+      TimeoutFuture(25.seconds) {
+        Future {
+          val maybeLicense = LicenseUtil(Play.current).detect(request.body)
+          Cache.set(id, maybeLicense)
+          maybeLicense
         }
       }
-    } { license =>
-      // cache hit
-      Future.successful(Ok(license))
-    }
+
+    } (Future.successful)
+
+    tryToGetResult(maybeResultFuture, id)
   }
 
   def licenseCheck(id: String) = Action.async {
-    existingJob(id)
+    val maybeResultFuture = Cache.getAs[Option[String]](id).fold {
+      // cache miss, try again later
+      TimeoutFuture(25.seconds) {
+        Cache.getAs[Option[String]](id).fold(Future.failed[Option[String]](new TimeoutException))(Future.successful)
+      }
+    } (Future.successful)
+
+    tryToGetResult(maybeResultFuture, id)
   }
 
-  private def existingJob(id: String): Future[Result] = {
-    val resultFuture = Akka.system.actorSelection(s"user/$id").ask(GetResult)(Timeout(20.seconds))
-    tryToGetResult(resultFuture, id).recover {
-      // did not receive the result in time so redirect
-      // workaround: Play's WS lib does not follow redirects to the same URL so a random number is appended to the query string
-      case e: TimeoutException => Redirect(routes.Application.licenseCheck(id).url, Map("rand" -> Seq(Random.nextInt().toString)))
-    }
-  }
-
-  private def tryToGetResult(resultFuture: Future[Any], id: String): Future[Result] = {
-    resultFuture.mapTo[Option[String]].map { result =>
-      // received the result
+  private def tryToGetResult(resultFuture: Future[Option[String]], id: String): Future[Result] = {
+    resultFuture.map { result =>
       result.fold(NotFound("License Not Detected"))(Ok(_))
+    } recover {
+      case e: TimeoutException =>
+        Redirect(routes.Application.licenseCheck(id).url, Map("rand" -> Seq(Random.nextInt().toString)))
     }
   }
 

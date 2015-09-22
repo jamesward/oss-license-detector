@@ -2,5 +2,5 @@
 # This file defines all application routes (Higher priority routes first)
 # ~~~~
 
-POST         /                         controllers.Application.license(id: Option[String])
+POST         /                         controllers.Application.license
 GET          /                         controllers.Application.licenseCheck(id: String)

@@ -4,7 +4,6 @@ import java.util.concurrent.{Executors, TimeUnit}
 
 import com.ning.http.client.AsyncHttpClient
 import play.api.http.Status
-import play.api.libs.concurrent.Akka
 import play.api.libs.ws.WS
 import play.api.test._
 import play.api.test.Helpers._
@@ -46,7 +45,7 @@ class ApplicationSpec extends PlaySpec with OneAppPerTest {
           |// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.""".stripMargin
 
 
-      val result = controllers.Application.license(None)(FakeRequest("POST", "/", FakeHeaders(), license))
+      val result = controllers.Application.license(FakeRequest("POST", "/", FakeHeaders(), license))
 
       status(result) must be (Status.OK)
       contentAsString(result) must equal ("BSD 3-Clause")
@@ -54,31 +53,15 @@ class ApplicationSpec extends PlaySpec with OneAppPerTest {
   }
 
   "initial response" must {
-    "happen in under 25 seconds" in {
+    "happen in under 30 seconds" in {
       implicit val ec = play.api.libs.concurrent.Execution.defaultContext
 
       val ws = WS.client
       val future = ws.url("http://www.tinymce.com/license").get().flatMap { response =>
-        controllers.Application.license(None)(FakeRequest("POST", "/", FakeHeaders(), response.body))
+        controllers.Application.license(FakeRequest("POST", "/", FakeHeaders(), response.body))
       }
       future.foreach(_ => ws.underlying[AsyncHttpClient].close())
-      await(future, 25, TimeUnit.SECONDS).header.status must equal (Status.FOUND)
-    }
-    "happen in under 25 seconds even when there are a bunch of requests" in {
-
-      implicit val ec = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(100))
-
-      val ws = WS.client
-      val license = await(ws.url("http://www.tinymce.com/license").get().map(_.body))
-      ws.underlying[AsyncHttpClient].close()
-
-      val future = Future.sequence {
-        Seq.fill(5) {
-          controllers.Application.license(None)(FakeRequest("POST", "/", FakeHeaders(), license))
-        }
-      }
-
-      await(future, 25, TimeUnit.SECONDS).head.header.status must equal (Status.FOUND)
+      await(future, 30, TimeUnit.SECONDS).header.status must equal (Status.SEE_OTHER)
     }
   }
 
