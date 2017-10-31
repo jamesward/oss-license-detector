@@ -1,17 +1,20 @@
 package controllers
 
-import java.util.concurrent.{Executors, TimeUnit}
+import java.util.concurrent.TimeUnit
 
-import com.ning.http.client.AsyncHttpClient
 import play.api.http.Status
-import play.api.libs.ws.WS
 import play.api.test._
 import play.api.test.Helpers._
 import org.scalatestplus.play._
+import org.scalatestplus.play.guice.GuiceOneAppPerTest
+import play.api.libs.ws.WSClient
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
-class ApplicationSpec extends PlaySpec with OneAppPerTest {
+
+class ApplicationSpec extends PlaySpec with GuiceOneAppPerTest {
+
+  implicit lazy val ec = app.injector.instanceOf[ExecutionContext]
 
   "Application.license" must {
     "detect the BSD 3-Clause license for http://polymer.github.io/LICENSE.txt" in {
@@ -44,8 +47,9 @@ class ApplicationSpec extends PlaySpec with OneAppPerTest {
           |// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
           |// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.""".stripMargin
 
+      val applicationController = app.injector.instanceOf[Application]
 
-      val result = controllers.Application.license(FakeRequest("POST", "/", FakeHeaders(), license))
+      val result = applicationController.license(FakeRequest("POST", "/", FakeHeaders(), license))
 
       status(result) must be (Status.OK)
       contentAsString(result) must equal ("BSD 3-Clause")
@@ -54,14 +58,15 @@ class ApplicationSpec extends PlaySpec with OneAppPerTest {
 
   "initial response" must {
     "happen in under 30 seconds" in {
-      implicit val ec = play.api.libs.concurrent.Execution.defaultContext
+      val ws = app.injector.instanceOf[WSClient]
 
-      val ws = WS.client
+      val applicationController = app.injector.instanceOf[Application]
+
       val future = ws.url("http://www.tinymce.com/license").get().flatMap { response =>
-        controllers.Application.license(FakeRequest("POST", "/", FakeHeaders(), response.body))
+        applicationController.license(FakeRequest("POST", "/", FakeHeaders(), response.body))
       }
-      future.foreach(_ => ws.underlying[AsyncHttpClient].close())
-      await(future, 30, TimeUnit.SECONDS).header.status must equal (Status.SEE_OTHER)
+
+      await(future, 30, TimeUnit.SECONDS).header.status must (equal (Status.SEE_OTHER) or equal (Status.OK))
     }
   }
 

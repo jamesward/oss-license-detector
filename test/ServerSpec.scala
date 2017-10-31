@@ -1,25 +1,25 @@
 import java.util.concurrent.TimeUnit
 
-import com.ning.http.client.AsyncHttpClient
-import org.scalatest._
-import play.api.libs.ws.WS
-import play.api.test._
 import play.api.test.Helpers._
 import org.scalatestplus.play._
-import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatestplus.play.guice.GuiceOneServerPerSuite
+import play.api.libs.ws.WSClient
 
-class ServerSpec extends PlaySpec with OneServerPerSuite {
+import scala.concurrent.ExecutionContext
+
+
+class ServerSpec extends PlaySpec with GuiceOneServerPerSuite {
+
+  implicit lazy val ec = app.injector.instanceOf[ExecutionContext]
 
   "large licenses" must {
     "work" in {
 
-      val ws = WS.client
+      val ws = app.injector.instanceOf[WSClient]
 
       val license = await(ws.url("http://www.tinymce.com/license").get().map(_.body))
 
       val response = await(ws.url(s"http://localhost:$port").post(license), 90, TimeUnit.SECONDS)
-
-      ws.underlying[AsyncHttpClient].close()
 
       response.status mustBe OK
       response.body mustBe "LGPL-2.1"

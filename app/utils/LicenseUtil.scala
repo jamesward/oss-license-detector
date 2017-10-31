@@ -1,15 +1,18 @@
 package utils
 
-import java.util.Locale
+import javax.inject.{Inject, Singleton}
 
-import org.apache.commons.lang3.StringUtils
-import play.api.{Play, Application}
+import org.apache.commons.text.similarity.LevenshteinDistance
+import play.api.Environment
 
 import scala.io.{Codec, Source}
 import scala.language.implicitConversions
 import scala.util.Try
 
-class LicenseUtil(implicit app: Application) {
+@Singleton
+class LicenseUtil @Inject() (environment: Environment) {
+
+  val levenshteinDistance = new LevenshteinDistance()
 
   def detect(contents: String): Option[String] = {
 
@@ -34,14 +37,14 @@ class LicenseUtil(implicit app: Application) {
 
   def scores(licenseContents: String, licenses: Map[String, String]): Map[String, (String, Int)] = {
     licenses.mapValues { licenseTemplate =>
-      (licenseTemplate, StringUtils.getLevenshteinDistance(licenseTemplate, licenseContents))
+      licenseTemplate -> levenshteinDistance.apply(licenseTemplate, licenseContents)
     }
   }
 
   type MaybeLicense = Option[String]
 
   implicit def stringToLicenseText(value: String): MaybeLicense = {
-    Play.resource("licenses/" + value).flatMap { url =>
+    environment.resource("licenses/" + value).flatMap { url =>
       Try(Source.fromURL(url)(Codec.ISO8859).mkString).toOption
     }
   }
@@ -118,8 +121,4 @@ class LicenseUtil(implicit app: Application) {
   val licenses: Map[String, String] = allLicenses.filter(_._2.isDefined).map { case (name, maybeLicense) =>
     name -> maybeLicense.get
   }
-}
-
-object LicenseUtil {
-  def apply(implicit app: Application): LicenseUtil = new LicenseUtil()
 }

@@ -2,17 +2,18 @@ package utils
 
 import java.util.concurrent.TimeUnit
 
-import com.ning.http.client.AsyncHttpClient
-import org.scalatestplus.play.{OneAppPerSuite, PlaySpec}
-import play.api.libs.ws.WS
+import org.scalatestplus.play.guice.GuiceOneAppPerSuite
+import org.scalatestplus.play.PlaySpec
+import play.api.libs.ws.WSClient
 import play.api.test.Helpers._
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 
 
-class LicenseUtilSpec extends PlaySpec with OneAppPerSuite {
+class LicenseUtilSpec extends PlaySpec with GuiceOneAppPerSuite {
 
-  val licenseUtil = LicenseUtil(app)
+  lazy val licenseUtil = app.injector.instanceOf[LicenseUtil]
+  implicit lazy val ec = app.injector.instanceOf[ExecutionContext]
 
   "LicenseUtil allLicenses" must {
     "not have a fake license" in {
@@ -107,11 +108,10 @@ class LicenseUtilSpec extends PlaySpec with OneAppPerSuite {
 
   "http://www.tinymce.com/license license" should {
     "detect a LGPL-2.1 license" in {
-      val ws = WS.client
+      val ws = app.injector.instanceOf[WSClient]
       val future = ws.url("http://www.tinymce.com/license").get().map { response =>
         licenseUtil.detect(response.body)
       }
-      future.foreach(_ => ws.underlying[AsyncHttpClient].close())
       await(future, 60, TimeUnit.SECONDS) must be (Some("LGPL-2.1"))
     }
   }

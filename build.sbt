@@ -1,17 +1,13 @@
-name := "oss-license-detector"
-
-version := "1.0-SNAPSHOT"
-
 lazy val root = (project in file(".")).enablePlugins(PlayScala)
 
-scalaVersion := "2.11.7"
+name := "oss-license-detector"
+
+scalaVersion := "2.12.4"
 
 libraryDependencies ++= Seq(
   ws,
-  cache,
-  "org.apache.commons" % "commons-lang3" % "3.4",
-  "org.scalatestplus" %% "play" % "1.2.0" % "test"
+  ehcache,
+  guice,
+  "org.apache.commons" % "commons-text" % "1.1",
+  "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.2"
 )
-
-
-fork in run := true
