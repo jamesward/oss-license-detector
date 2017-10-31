@@ -116,4 +116,14 @@ class LicenseUtilSpec extends PlaySpec with GuiceOneAppPerSuite {
     }
   }
 
+  "https://raw.githubusercontent.com/Artur-/highcharts-dist-test/v6.0.2/license.txt" should {
+    "not detect a license" in {
+      val ws = app.injector.instanceOf[WSClient]
+      val future = ws.url("https://raw.githubusercontent.com/Artur-/highcharts-dist-test/v6.0.2/license.txt").get().map { response =>
+        licenseUtil.detect(response.body)
+      }
+      await(future, 60, TimeUnit.SECONDS) must be (None)
+    }
+  }
+
 }

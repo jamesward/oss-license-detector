@@ -12,6 +12,8 @@ import scala.util.Try
 @Singleton
 class LicenseUtil @Inject() (environment: Environment) {
 
+  val CORRECT_THRESHOLD = 0.5
+
   val levenshteinDistance = new LevenshteinDistance()
 
   def detect(contents: String): Option[String] = {
@@ -27,9 +29,13 @@ class LicenseUtil @Inject() (environment: Environment) {
 
     val licensesWithScores = scores(contents, possibleLicensesBasedOnLength)
 
+    val licensesInThreshold = licensesWithScores.filter {
+      case (name, (_, score)) => score < contents.length * CORRECT_THRESHOLD
+    }
+
     Try {
-      val (lowestScoringLicense, _) = licensesWithScores.minBy {
-        case (name, (licenseTemplate, score)) => score
+      val (lowestScoringLicense, _) = licensesInThreshold.minBy {
+        case (name, (_, score)) => score
       }
       lowestScoringLicense
     }.toOption
