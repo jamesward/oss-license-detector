@@ -17,10 +17,10 @@ class LicenseUtilSpec extends PlaySpec with GuiceOneAppPerSuite {
 
   "LicenseUtil allLicenses" must {
     "not have a fake license" in {
-      licenseUtil.allLicenses.get("ASDF") must be ('empty)
+      licenseUtil.allLicenses.get("ASDF") mustBe None
     }
     "define MIT" in {
-      licenseUtil.allLicenses.get("MIT").flatten must be ('defined)
+      licenseUtil.allLicenses.get("MIT").flatten mustBe defined
     }
     "work with ISO8859" in {
       licenseUtil.allLicenses("CPOL-1.02").get.contains("CPOL") must be (true)
@@ -31,7 +31,7 @@ class LicenseUtilSpec extends PlaySpec with GuiceOneAppPerSuite {
   }
   "LicenseUtil licenses" must {
     "define MIT" in {
-      licenseUtil.licenses.get("MIT") must be ('defined)
+      licenseUtil.licenses.get("MIT") mustBe defined
     }
   }
   "LicenseUtil detect" must {
@@ -102,10 +102,11 @@ class LicenseUtilSpec extends PlaySpec with GuiceOneAppPerSuite {
       licenseUtil.detect(jqueryLicense) must be(Some("MIT"))
     }
     "not detect a license from a non-license" in {
-      licenseUtil.detect("asdf") must be(None)
+      licenseUtil.detect("asdf") mustBe None
     }
   }
 
+  /*
   "http://www.tinymce.com/license license" should {
     "detect a LGPL-2.1 license" in {
       val ws = app.injector.instanceOf[WSClient]
@@ -115,6 +116,7 @@ class LicenseUtilSpec extends PlaySpec with GuiceOneAppPerSuite {
       await(future, 60, TimeUnit.SECONDS) must be (Some("LGPL-2.1"))
     }
   }
+   */
 
   "https://raw.githubusercontent.com/Artur-/highcharts-dist-test/v6.0.2/license.txt" should {
     "not detect a license" in {
@@ -122,7 +124,17 @@ class LicenseUtilSpec extends PlaySpec with GuiceOneAppPerSuite {
       val future = ws.url("https://raw.githubusercontent.com/Artur-/highcharts-dist-test/v6.0.2/license.txt").get().map { response =>
         licenseUtil.detect(response.body)
       }
-      await(future, 60, TimeUnit.SECONDS) must be (None)
+      await(future, 60, TimeUnit.SECONDS) mustBe None
+    }
+  }
+
+  "https://raw.githubusercontent.com/mapbox/mapbox-gl-js/main/LICENSE.txt license" should {
+    "detect a BSD-3-Clause license" in {
+      val ws = app.injector.instanceOf[WSClient]
+      val future = ws.url("https://raw.githubusercontent.com/mapbox/mapbox-gl-js/main/LICENSE.txt").get().map { response =>
+        licenseUtil.detect(response.body)
+      }
+      await(future, 60, TimeUnit.SECONDS) must be (Some("BSD 3-Clause"))
     }
   }
 

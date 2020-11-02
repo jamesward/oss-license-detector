@@ -62,7 +62,7 @@ class ApplicationSpec extends PlaySpec with GuiceOneAppPerTest {
 
       val applicationController = app.injector.instanceOf[Application]
 
-      val future = ws.url("http://www.tinymce.com/license").get().flatMap { response =>
+      val future = ws.url("https://raw.githubusercontent.com/tinymce/tinymce/master/LICENSE.TXT").get().flatMap { response =>
         applicationController.license(FakeRequest("POST", "/", FakeHeaders(), response.body))
       }
 

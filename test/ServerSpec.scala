@@ -17,7 +17,7 @@ class ServerSpec extends PlaySpec with GuiceOneServerPerSuite {
 
       val ws = app.injector.instanceOf[WSClient]
 
-      val license = await(ws.url("http://www.tinymce.com/license").get().map(_.body))
+      val license = await(ws.url("https://raw.githubusercontent.com/tinymce/tinymce/master/LICENSE.TXT").get().map(_.body))
 
       val response = await(ws.url(s"http://localhost:$port").post(license), 90, TimeUnit.SECONDS)
 

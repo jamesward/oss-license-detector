@@ -1,13 +1,12 @@
 package utils
 
 import javax.inject.{Inject, Singleton}
-
 import org.apache.commons.text.similarity.LevenshteinDistance
 import play.api.Environment
 
 import scala.io.{Codec, Source}
 import scala.language.implicitConversions
-import scala.util.Try
+import scala.util.{Try, Using}
 
 @Singleton
 class LicenseUtil @Inject() (environment: Environment) {
@@ -18,40 +17,48 @@ class LicenseUtil @Inject() (environment: Environment) {
 
   def detect(contents: String): Option[String] = {
 
+    val maybeDividerLine = contents.linesIterator.find { line =>
+      line.toSeq.distinct.unwrap == "-"
+    }
+
+    val justLicenseContents = maybeDividerLine.fold(contents) { dividerLine =>
+      contents.linesIterator.takeWhile(_ != dividerLine).mkString(System.lineSeparator)
+    }
+
     // only pick licenses that are around the same length as the input
     val possibleLicensesBasedOnLength = licenses.filter {
-      case (name, licenseText) =>
-        val high = Math.max(licenseText.length, contents.length).toDouble
-        val low = Math.min(licenseText.length, contents.length).toDouble
+      case (_, licenseText) =>
+        val high = Math.max(licenseText.length, justLicenseContents.length).toDouble
+        val low = Math.min(licenseText.length, justLicenseContents.length).toDouble
         val distance = (high - low) / low
         distance < 0.5
     }
 
-    val licensesWithScores = scores(contents, possibleLicensesBasedOnLength)
+    val licensesWithScores = scores(justLicenseContents, possibleLicensesBasedOnLength)
 
     val licensesInThreshold = licensesWithScores.filter {
-      case (name, (_, score)) => score < contents.length * CORRECT_THRESHOLD
+      case (_, (_, score)) => score < justLicenseContents.length * CORRECT_THRESHOLD
     }
 
     Try {
       val (lowestScoringLicense, _) = licensesInThreshold.minBy {
-        case (name, (_, score)) => score
+        case (_, (_, score)) => score
       }
       lowestScoringLicense
     }.toOption
   }
 
   def scores(licenseContents: String, licenses: Map[String, String]): Map[String, (String, Int)] = {
-    licenses.mapValues { licenseTemplate =>
-      licenseTemplate -> levenshteinDistance.apply(licenseTemplate, licenseContents)
-    }
+    licenses.view.mapValues { licenseTemplate =>
+      licenseTemplate -> levenshteinDistance.apply(licenseTemplate, licenseContents).intValue()
+    }.toMap
   }
 
   type MaybeLicense = Option[String]
 
   implicit def stringToLicenseText(value: String): MaybeLicense = {
     environment.resource("licenses/" + value).flatMap { url =>
-      Try(Source.fromURL(url)(Codec.ISO8859).mkString).toOption
+      Using(Source.fromURL(url)(Codec.ISO8859))(_.mkString).toOption
     }
   }
 
